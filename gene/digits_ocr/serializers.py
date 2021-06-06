@@ -52,7 +52,7 @@ class MNISTOCRRequestSerializer(serializers.Serializer):
         if 'image' not in value.content_type:
             raise serializers.ValidationError("Only image files are supported")
         return value
-class RowNumbersOCRResponseRequestSerializer(serializers.Serializer):
+class RowNumbersOCRRequestSerializer(serializers.Serializer):
     image = serializers.FileField(required=True)
     confidence_threshold = serializers.FloatField(
         min_value=cfg.API.MNIST.CONFIDENCE_THRESHOLD.MIN,

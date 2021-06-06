@@ -44,6 +44,7 @@ urlpatterns = [
     path('', include('django_prometheus.urls')),
     path('', views.redirect_home_view, name='gene_test'),
     path('api/ocr/mnist', views.MNISTView.as_view(), name='mnist_ocr'),
+    path('api/ocr/row', views.RowNumbersView.as_view(), name='row_ocr'),
     path('api/ocr/tensorflowinfo', views.TFVersionView.as_view(), name='tensorflow_info'),
     url(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     url(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

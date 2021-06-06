@@ -19,8 +19,9 @@ from cv2 import cv2
 
 from gene import ocr_config
 from gene.ocr_config import cfg
-from gene.digits_ocr.ocr_response import MNISTOCRResponse
+from gene.digits_ocr.ocr_response import MNISTOCRResponse, RowNumbersOCRResponse
 from gene.digits_ocr.serializers import MNISTOCRResponseSerializer, MNISTOCRRequestSerializer
+from gene.digits_ocr.serializers import RowNumbersOCRRequestSerializer, RowNumbersOCRResponseSerializer
 from gene.digits_ocr.utils import predict
 
 
@@ -106,4 +107,61 @@ class MNISTView(APIView):
             top_n=request_serializer.data['top_n']
         )
         response_serializer = MNISTOCRResponseSerializer(response)
+        return Response([response_serializer.data])
+class RowNumbersView(APIView):
+    """
+    POST: perform OCR on single digit image
+    """
+    parser_classes = (MultiPartParser, FormParser)
+
+    @swagger_auto_schema(
+        request_body=RowNumbersOCRRequestSerializer,
+        operation_summary='Perfrom OCR on a single digit',
+        operation_description='Perfrom OCR on request image and return prediction and confidence score of prediciton',
+        manual_parameters=[
+            Parameter(
+                name='image', required=True, in_='formData', type='file',
+                description='image(supported format: TIFF, JPEG, PNG) for OCR'
+                ),
+            Parameter(
+                name='confidence_threshold', in_='formData', type='float',
+                description='Predicitons below confidence threshold would be masked by "*"\n Range 0.0-1.0',
+                default=cfg.API.MNIST.CONFIDENCE_THRESHOLD.DEFAULT
+                ),
+            Parameter(
+                name='top_n', in_='formData', type='integer',
+                description='Top N predictions to be returned on each characters in image\n Range 0-12',
+                default=cfg.API.MNIST.TOP_N.DEFAULT
+            )
+
+        ],
+        responses={200: RowNumbersOCRResponseSerializer, 400: '400 Bad Request'}
+    )
+
+    def post(self, request, *args, **kwargs):
+        request_serializer = RowNumbersOCRRequestSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
+        img_data = request.data['image']
+        # parse the image data into numpy array
+        img = np.asarray(bytearray(img_data.read()), np.uint8)
+        # convert 256-level grayScale
+        img = cv2.imdecode(img, cv2.IMREAD_GRAYSCALE)
+        
+        box_width = int(img.shape[1] / 12) + 2
+        digits_images = list()
+        for idx in range(12):
+            temp = img.copy()
+            temp = temp[:, box_width * idx:box_width * (idx + 1)]
+            temp = 255 - cv2.resize(temp, (28, 28), interpolation=cv2.INTER_AREA)
+            digits_images.append(temp)
+        digits_images = np.asarray(digits_images) / 255.0
+        # load model and predict
+        mnist_model = tf.keras.models.load_model(ocr_config.cfg.MNIST.MODEL_TO_USE)
+        results = predict(digits_images, mnist_model)
+        response = RowNumbersOCRResponse(
+            results,
+            confidence_threshold=request_serializer.data['confidence_threshold'],
+            top_n=request_serializer.data['top_n']
+        )
+        response_serializer = RowNumbersOCRResponseSerializer(response)
         return Response([response_serializer.data])
